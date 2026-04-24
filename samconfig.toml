@@ -1,0 +1,13 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "multi-tenant-pharmacy-api"
+resolve_s3 = true
+s3_prefix = "multi-tenant-pharmacy-api"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "UserPoolIssuer=\"https://cognito-idp.us-east-1.amazonaws.com/us-east-1_nGYTxbxjV\" UserPoolAudience=\"6pn73np4msanif6hikjfk20cn3\" StageName=\"prod\""
+image_repositories = []
+
+[default.global.parameters]
+region = "us-east-1"

@@ -1,0 +1,197 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Multi-tenant SaaS pharmacy inventory API
+
+Parameters:
+  UserPoolIssuer:
+    Type: String
+    Description: Cognito issuer URL, for example https://cognito-idp.eu-west-2.amazonaws.com/eu-west-2_abc123
+  UserPoolAudience:
+    Type: String
+    Description: Cognito app client ID expected in the JWT aud claim
+  StageName:
+    Type: String
+    Default: prod
+    Description: API Gateway stage name
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 15
+    MemorySize: 256
+    Tracing: Active
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref InventoryTable
+        LOW_STOCK_QUEUE_URL: !Ref LowStockQueue
+        LOW_STOCK_TOPIC_ARN: !Ref LowStockTopic
+        LOW_STOCK_STREAM_NAME: !Ref LowStockEventStream
+        EVENT_BUS_NAME: default
+
+Resources:
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: !Ref StageName
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - POST
+          - OPTIONS
+      Auth:
+        Authorizers:
+          CognitoJwtAuthorizer:
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Ref UserPoolIssuer
+              audience:
+                - !Ref UserPoolAudience
+
+  CreateDrugFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: create_drug_lambda.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InventoryTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt LowStockQueue.QueueName
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt LowStockTopic.TopicName
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+            - Effect: Allow
+              Action:
+                - kinesis:PutRecord
+                - kinesis:PutRecords
+              Resource: !GetAtt LowStockEventStream.Arn
+      Events:
+        CreateDrug:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /drugs
+            Method: POST
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  ProcessLowStockAlertFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: process_low_stock_alert_lambda.lambda_handler
+      Policies:
+        - SQSPollerPolicy:
+            QueueName: !GetAtt LowStockQueue.QueueName
+      Events:
+        LowStockQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt LowStockQueue.Arn
+            BatchSize: 10
+
+  ProcessLowStockEventBridgeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: process_low_stock_eventbridge_lambda.lambda_handler
+      Events:
+        LowStockEventBridgeRule:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - pharmacy.inventory
+              detail-type:
+                - LowStockDetected
+
+  LowStockDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600
+
+  LowStockTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "${AWS::StackName}-low-stock-topic"
+
+  LowStockEventStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      Name: !Sub "${AWS::StackName}-low-stock-stream"
+      ShardCount: 1
+
+  LowStockQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt LowStockDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  InventoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+
+Outputs:
+  ApiUrl:
+    Description: Base URL for the deployed HTTP API
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}"
+
+  CreateDrugEndpoint:
+    Description: POST endpoint for creating drugs
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}/drugs"
+
+  InventoryTableName:
+    Description: DynamoDB inventory table name
+    Value: !Ref InventoryTable
+
+  LowStockQueueUrl:
+    Description: Queue URL for low-stock alerts
+    Value: !Ref LowStockQueue
+
+  LowStockTopicArn:
+    Description: SNS topic ARN for low-stock notifications
+    Value: !Ref LowStockTopic
+
+  LowStockKinesisStreamName:
+    Description: Kinesis stream name for low-stock events
+    Value: !Ref LowStockEventStream
+
+  LowStockDeadLetterQueueUrl:
+    Description: DLQ URL for failed low-stock alerts
+    Value: !Ref LowStockDeadLetterQueue

@@ -1,0 +1,31 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.12
+    commands:
+      - python -m pip install --upgrade pip
+      - pip install aws-sam-cli
+  pre_build:
+    commands:
+      - python -m unittest test_create_drug_lambda.py
+  build:
+    commands:
+      - sam build
+      - |
+        sam deploy \
+          --stack-name "$STACK_NAME" \
+          --region "$AWS_DEFAULT_REGION" \
+          --no-confirm-changeset \
+          --no-fail-on-empty-changeset \
+          --capabilities CAPABILITY_IAM \
+          --parameter-overrides \
+            UserPoolIssuer="$USER_POOL_ISSUER" \
+            UserPoolAudience="$USER_POOL_AUDIENCE" \
+            StageName="$STAGE_NAME"
+
+artifacts:
+  files:
+    - template.yaml
+    - samconfig.toml
