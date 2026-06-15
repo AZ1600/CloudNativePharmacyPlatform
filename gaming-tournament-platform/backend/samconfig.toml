@@ -1,0 +1,14 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "gaming-tournament-platform"
+resolve_s3 = true
+s3_prefix = "gaming-tournament-platform"
+region = "eu-west-2"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "UserPoolIssuer=\"https://cognito-idp.us-east-1.amazonaws.com/us-east-1_nGYTxbxjV\" UserPoolAudience=\"6pn73np4msanif6hikjfk20cn3\""
+image_repositories = []
+
+[default.global.parameters]
+region = "eu-west-2"

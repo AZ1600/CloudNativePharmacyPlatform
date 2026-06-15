@@ -1,0 +1,316 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Gaming tournament platform MVP backend
+
+Parameters:
+  UserPoolIssuer:
+    Type: String
+    Description: Cognito issuer URL
+  UserPoolAudience:
+    Type: String
+    Description: Cognito app client ID for JWT audience validation
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 15
+    MemorySize: 256
+    Tracing: Active
+    Environment:
+      Variables:
+        APP_TABLE_NAME: !Ref GamingAppTable
+        EVENT_BUS_NAME: default
+
+Resources:
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+      Auth:
+        Authorizers:
+          CognitoJwtAuthorizer:
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Ref UserPoolIssuer
+              audience:
+                - !Ref UserPoolAudience
+
+  CreateProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.create_profile.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GamingAppTable
+      Events:
+        CreateProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /profiles
+            Method: POST
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  GetMyProfileFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.get_my_profile.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref GamingAppTable
+      Events:
+        GetMyProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /profiles/me
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  CreateTournamentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.create_tournament.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GamingAppTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        CreateTournament:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tournaments
+            Method: POST
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  GenerateFixturesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.generate_fixtures.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GamingAppTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        ScheduledDraw:
+          Type: Schedule
+          Properties:
+            Schedule: rate(5 minutes)
+            Name: gaming-platform-scheduled-draw
+            Description: Generate fixtures for tournaments whose draw time has arrived
+
+  ListTournamentsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.list_tournaments.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref GamingAppTable
+      Events:
+        ListTournaments:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tournaments
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  JoinTournamentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.join_tournament.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GamingAppTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        JoinTournament:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tournaments/{tournament_id}/join
+            Method: POST
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  SubmitScoreFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.submit_score.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GamingAppTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - events:PutEvents
+              Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
+      Events:
+        SubmitScore:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /matches/{match_id}/score
+            Method: POST
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  CreateMatchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.create_match.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GamingAppTable
+      Events:
+        CreateMatch:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /matches
+            Method: POST
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  GetMatchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.get_match.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref GamingAppTable
+      Events:
+        GetMatch:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /matches/{match_id}
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  ListTournamentMatchesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.list_tournament_matches.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref GamingAppTable
+      Events:
+        ListTournamentMatches:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /tournaments/{tournament_id}/matches
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  GetLeaderboardFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.get_leaderboard.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref GamingAppTable
+      Events:
+        GetLeaderboard:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /leaderboards
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  ProcessMatchScoreEventFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: handlers.process_match_score_event.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref GamingAppTable
+      Events:
+        MatchScoreUpdatedRule:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source:
+                - gaming.tournaments
+              detail-type:
+                - MatchScoreUpdated
+
+  GamingAppTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      SSESpecification:
+        SSEEnabled: true
+
+Outputs:
+  ApiUrl:
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  TableName:
+    Value: !Ref GamingAppTable
