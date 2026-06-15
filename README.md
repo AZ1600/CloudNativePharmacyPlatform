@@ -1,59 +1,73 @@
-# Cloud-Native Serverless Pharmacy Platform
+# Cloud-Native Multi-Tenant Pharmacy Inventory Platform
 
 ## Overview
 
-A multi-tenant serverless pharmacy management platform built on AWS using event-driven architecture and Infrastructure as Code principles.
+Cloud-native serverless pharmacy inventory platform designed using AWS managed services and event-driven architecture principles.
 
-The platform enables pharmacies and healthcare organizations to securely manage pharmaceutical inventory, monitor stock levels, process low-stock alerts, and support tenant-isolated operations using a shared SaaS architecture.
+The solution enables healthcare organisations to securely manage pharmaceutical inventory, monitor stock levels, trigger automated low-stock workflows, and support tenant-isolated SaaS operations from a shared infrastructure model.
 
-Built using AWS Lambda, API Gateway, DynamoDB, Amazon Cognito, SQS, EventBridge, and AWS SAM, the solution demonstrates cloud-native application design, serverless computing, event-driven processing, and scalable AWS architecture patterns.
+The platform demonstrates modern cloud engineering practices including:
+
+* Serverless application design
+* Event-driven architecture
+* Infrastructure as Code (AWS SAM)
+* Multi-tenant SaaS data modelling
+* Secure API authentication and authorisation
+* Automated deployment pipelines
+
+The solution was built using AWS Lambda, API Gateway, DynamoDB, Amazon Cognito, Amazon SQS, Amazon EventBridge and AWS CloudFormation.
 
 ---
 
 ## Architecture
 
-Client Application
+```text
+                ┌─────────────────────┐
+                │ Client Application  │
+                └──────────┬──────────┘
+                           │
+                           ▼
+                 Amazon API Gateway
+                           │
+                           ▼
+                      AWS Lambda
+                           │
+                           ▼
+                    Amazon DynamoDB
+                           │
+                Low Stock Event Created
+                           │
+        ┌──────────────────┴──────────────────┐
+        ▼                                     ▼
 
-↓
+   Amazon SQS Queue                    Amazon EventBridge
+        │                                     │
+        ▼                                     ▼
 
-Amazon API Gateway
+   Lambda Consumer                     Lambda Consumer
 
-↓
-
-AWS Lambda
-
-↓
-
-Amazon DynamoDB
-
-↓
-
-Low Stock Event
-
-├── Amazon SQS Queue
-│ └── Lambda Consumer
-
-└── Amazon EventBridge
-    └── Lambda Consumer
-
-↓
-
-Amazon Cognito JWT Authentication
+                           ▲
+                           │
+                  Amazon Cognito
+               JWT Authentication
+```
 
 ---
 
-## Features
+## Key Features
 
-* Multi-Tenant SaaS Design
+* Multi-Tenant SaaS Architecture
 * JWT Authentication with Amazon Cognito
 * Drug Inventory Management
-* Low Stock Detection
+* Automated Low Stock Detection
 * Event-Driven Processing
-* SQS Queue Processing
-* EventBridge Event Routing
+* Amazon SQS Queue Integration
+* Amazon EventBridge Event Routing
 * Dead Letter Queue (DLQ) Support
-* Infrastructure as Code using AWS SAM
+* Infrastructure as Code with AWS SAM
 * Automated Deployment Pipelines
+* Tenant-Isolated Data Model
+* Serverless Compute Architecture
 
 ---
 
@@ -66,7 +80,7 @@ Amazon Cognito JWT Authentication
 * Amazon SQS
 * Amazon EventBridge
 * AWS IAM
-* AWS CloudWatch
+* Amazon CloudWatch
 * AWS SAM
 * AWS CloudFormation
 
@@ -74,16 +88,48 @@ Amazon Cognito JWT Authentication
 
 ## Skills Demonstrated
 
-* Serverless Architecture
-* Event-Driven Design
-* Cloud Engineering
-* AWS Solutions Architecture
-* Multi-Tenant SaaS Design
-* Infrastructure as Code
-* Security and Identity Management
-* DynamoDB Data Modeling
-* API Development
-* DevOps Automation
+### Cloud Engineering
+
+* Serverless Architecture Design
+* Event-Driven System Design
+* Multi-Tenant SaaS Architecture
+* Cloud Security and Identity Management
+* API Development and Integration
+
+### DevOps & Platform Engineering
+
+* Infrastructure as Code (IaC)
+* AWS SAM Deployments
+* CI/CD Pipeline Integration
+* Cloud Resource Automation
+* Environment Provisioning
+
+### AWS Services
+
+* Lambda
+* API Gateway
+* DynamoDB
+* Cognito
+* SQS
+* EventBridge
+* IAM
+* CloudFormation
+* CloudWatch
+
+---
+
+## Project Outcomes
+
+This project demonstrates the ability to:
+
+* Design and implement a multi-tenant SaaS platform
+* Build secure serverless APIs using AWS managed services
+* Implement event-driven workflows using SQS and EventBridge
+* Model scalable DynamoDB data structures
+* Apply Infrastructure as Code principles using AWS SAM
+* Design resilient cloud-native systems with retries and dead-letter queues
+* Implement authentication and authorization using Amazon Cognito
+* Build loosely coupled distributed systems
 
 ---
 
@@ -91,41 +137,101 @@ Amazon Cognito JWT Authentication
 
 ### Tenant Isolation
 
-Inventory records are stored using:
+Inventory data is stored using a single-table DynamoDB design:
 
+```text
 PK = TENANT#{tenant_id}
-
 SK = DRUG#{drug_id}
+```
 
 This provides logical isolation between customers while maintaining a cost-efficient shared infrastructure model.
 
+---
+
 ### Event Processing
 
-Low-stock inventory events are published to:
+When inventory falls below a defined threshold, the platform publishes events to:
 
-* Amazon SQS for reliable background processing
-* Amazon EventBridge for event routing and integration
+* Amazon SQS for reliable asynchronous processing
+* Amazon EventBridge for event routing and service integration
 
-### Reliability
+This demonstrates two common event-driven architectural patterns used in production AWS environments.
 
-* Dead Letter Queues
+---
+
+### Reliability & Resilience
+
+The platform incorporates:
+
+* Dead Letter Queues (DLQs)
 * Retry Mechanisms
 * Lambda Event Source Mappings
 * Failure Handling Patterns
+* Asynchronous Processing
+* Decoupled Service Architecture
+
+---
+
+## Repository Structure
+
+```text
+.
+├── create_drug_lambda.py
+├── process_low_stock_alert_lambda.py
+├── process_low_stock_eventbridge_lambda.py
+├── template.yaml
+├── buildspec.yml
+├── pipeline-template.yaml
+├── samconfig.toml
+├── test_create_drug_lambda.py
+└── README.md
+```
 
 ---
 
 ## Future Enhancements
 
+Planned improvements include:
+
 * Prescription Management
 * Patient Records
+* Automated Notifications
 * Inventory Forecasting
-* Notification Services
 * Analytics Dashboards
-* CI/CD Automation
+* Advanced Reporting
+* CI/CD Pipeline Enhancements
+* Multi-Region Deployment Support
 
 ---
 
 ## Deployment
 
-Deployment instructions are available through AWS SAM and CloudFormation templates included in this repository.
+The platform is deployed using AWS SAM and AWS CloudFormation.
+
+### Build
+
+```bash
+sam build
+```
+
+### Deploy
+
+```bash
+sam deploy --guided
+```
+
+### Run Tests
+
+```bash
+python3 -m unittest test_create_drug_lambda.py
+```
+
+---
+
+## Author
+
+**Olawale Azeez**
+
+Cloud Engineer | Platform Engineer | DevOps Engineer
+
+Focused on building cloud-native platforms, internal developer platforms, automation solutions, and scalable AWS infrastructure.
