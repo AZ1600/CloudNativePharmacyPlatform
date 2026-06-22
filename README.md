@@ -139,10 +139,9 @@ This project demonstrates the ability to:
 
 Inventory data is stored using a single-table DynamoDB design:
 
-```text
 PK = TENANT#{tenant_id}
 SK = DRUG#{drug_id}
-```
+
 
 This provides logical isolation between customers while maintaining a cost-efficient shared infrastructure model.
 
@@ -174,7 +173,6 @@ The platform incorporates:
 
 ## Repository Structure
 
-```text
 .
 ├── create_drug_lambda.py
 ├── process_low_stock_alert_lambda.py
@@ -185,7 +183,7 @@ The platform incorporates:
 ├── samconfig.toml
 ├── test_create_drug_lambda.py
 └── README.md
-```
+
 
 ---
 
