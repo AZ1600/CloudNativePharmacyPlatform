@@ -97,6 +97,8 @@ Resources:
           Properties:
             Queue: !GetAtt LowStockQueue.Arn
             BatchSize: 10
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
 
   ProcessLowStockEventBridgeFunction:
     Type: AWS::Serverless::Function
