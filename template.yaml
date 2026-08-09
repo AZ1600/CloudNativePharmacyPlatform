@@ -57,21 +57,35 @@ Resources:
       CodeUri: .
       Handler: create_drug_lambda.lambda_handler
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref InventoryTable
-        - SQSSendMessagePolicy:
-            QueueName: !GetAtt LowStockQueue.QueueName
-        - SNSPublishMessagePolicy:
-            TopicName: !GetAtt LowStockTopic.TopicName
         - Statement:
-            - Effect: Allow
+            - Sid: WriteDrugToInventoryTable
+              Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt InventoryTable.Arn
+
+            - Sid: SendLowStockMessage
+              Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt LowStockQueue.Arn
+
+            - Sid: PublishLowStockNotification
+              Effect: Allow
+              Action:
+                - sns:Publish
+              Resource: !Ref LowStockTopic
+
+            - Sid: PublishLowStockEvent
+              Effect: Allow
               Action:
                 - events:PutEvents
               Resource: !Sub arn:aws:events:${AWS::Region}:${AWS::AccountId}:event-bus/default
-            - Effect: Allow
+
+            - Sid: WriteLowStockStreamRecord
+              Effect: Allow
               Action:
                 - kinesis:PutRecord
-                - kinesis:PutRecords
               Resource: !GetAtt LowStockEventStream.Arn
       Events:
         CreateDrug:
@@ -89,8 +103,14 @@ Resources:
       CodeUri: .
       Handler: process_low_stock_alert_lambda.lambda_handler
       Policies:
-        - SQSPollerPolicy:
-            QueueName: !GetAtt LowStockQueue.QueueName
+        - Statement:
+            - Sid: ConsumeLowStockMessages
+              Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+              Resource: !GetAtt LowStockQueue.Arn
       Events:
         LowStockQueueEvent:
           Type: SQS
