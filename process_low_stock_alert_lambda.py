@@ -7,32 +7,39 @@ logger.setLevel(logging.INFO)
 
 
 def lambda_handler(event, context):
-    processed = []
+    batch_item_failures = []
 
     for record in event.get("Records", []):
-        body = json.loads(record["body"])
-        logger.info(
-            json.dumps(
+        message_id = record.get("messageId", "")
+
+        try:
+            body = json.loads(record["body"])
+
+            logger.info(
+                json.dumps(
+                    {
+                        "message": "Processing low stock alert",
+                        "event_type": body.get("event_type"),
+                        "tenant_id": body.get("tenant_id"),
+                        "drug_id": body.get("drug_id"),
+                        "drug_name": body.get("drug_name"),
+                        "quantity": body.get("quantity"),
+                        "reorder_level": body.get("reorder_level"),
+                        "message_id": message_id,
+                    }
+                )
+            )
+        except (KeyError, TypeError, json.JSONDecodeError):
+            logger.exception(
+                "Failed to process low stock message %s",
+                message_id,
+            )
+            batch_item_failures.append(
                 {
-                    "message": "Processing low stock alert",
-                    "event_type": body.get("event_type"),
-                    "tenant_id": body.get("tenant_id"),
-                    "drug_id": body.get("drug_id"),
-                    "drug_name": body.get("drug_name"),
-                    "quantity": body.get("quantity"),
-                    "reorder_level": body.get("reorder_level"),
+                    "itemIdentifier": message_id,
                 }
             )
-        )
-        processed.append(
-            {
-                "message_id": record["messageId"],
-                "drug_id": body.get("drug_id"),
-            }
-        )
 
     return {
-        "statusCode": 200,
-        "processed_records": len(processed),
-        "items": processed,
+        "batchItemFailures": batch_item_failures,
     }
