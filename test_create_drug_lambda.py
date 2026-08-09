@@ -4,7 +4,7 @@ import os
 import sys
 import types
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 
 MODULE_NAME = "create_drug_lambda"
