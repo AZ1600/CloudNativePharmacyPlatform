@@ -40,6 +40,7 @@ Resources:
           - Content-Type
           - Authorization
         AllowMethods:
+          - GET
           - POST
           - OPTIONS
       Auth:
@@ -97,6 +98,26 @@ Resources:
             Auth:
               Authorizer: CognitoJwtAuthorizer
 
+  GetDrugsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: get_drugs_lambda.lambda_handler
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource: !Sub "${InventoryTable.Arn}/index/GSI1"
+      Events:
+        GetDrugs:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /drugs
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
   ProcessLowStockAlertFunction:
     Type: AWS::Serverless::Function
     Properties:
