@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   AlertTriangle,
   Bell,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { mockInventory } from './data/mockInventory'
+import { fetchInventory } from './services/inventoryApi'
 import {
   getStockStatus,
   type InventoryItem,
@@ -27,10 +28,41 @@ import {
 type FilterValue = 'All' | StockStatus
 
 function App() {
-  const [inventory] = useState<InventoryItem[]>(mockInventory)
+  const [inventory, setInventory] =
+    useState<InventoryItem[]>(mockInventory)
+  const [dataSource, setDataSource] = useState<'api' | 'mock'>('mock')
+  const [dataMessage, setDataMessage] = useState(
+    'Using local demonstration data',
+  )
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterValue>('All')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+
+  useEffect(() => {
+    let active = true
+
+    async function loadInventory() {
+      const result = await fetchInventory(mockInventory)
+
+      if (!active) {
+        return
+      }
+
+      setInventory(result.items)
+      setDataSource(result.source)
+      setDataMessage(
+        result.source === 'api'
+          ? 'Inventory loaded from the pharmacy API'
+          : result.message ?? 'Using local demonstration data',
+      )
+    }
+
+    void loadInventory()
+
+    return () => {
+      active = false
+    }
+  }, [])
 
   const filteredInventory = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -81,7 +113,10 @@ function App() {
         <nav className="navigation" aria-label="Primary navigation">
           <p className="navigation__label">Workspace</p>
 
-          <a className="navigation__item navigation__item--active" href="#dashboard">
+          <a
+            className="navigation__item navigation__item--active"
+            href="#dashboard"
+          >
             <LayoutDashboard size={19} aria-hidden="true" />
             Dashboard
           </a>
@@ -147,7 +182,11 @@ function App() {
           </div>
 
           <div className="topbar__actions">
-            <button className="icon-button" type="button" aria-label="Notifications">
+            <button
+              className="icon-button"
+              type="button"
+              aria-label="Notifications"
+            >
               <Bell size={20} />
               <span className="notification-dot" />
             </button>
@@ -184,6 +223,7 @@ function App() {
               icon={<Boxes size={21} />}
               tone="neutral"
             />
+
             <MetricCard
               label="Healthy stock"
               value={healthyCount.toString()}
@@ -191,6 +231,7 @@ function App() {
               icon={<PackageCheck size={21} />}
               tone="success"
             />
+
             <MetricCard
               label="Low stock"
               value={lowStockCount.toString()}
@@ -198,6 +239,7 @@ function App() {
               icon={<AlertTriangle size={21} />}
               tone="warning"
             />
+
             <MetricCard
               label="Out of stock"
               value={outOfStockCount.toString()}
@@ -214,9 +256,14 @@ function App() {
                 <p>Live operational view of medicines and stock thresholds.</p>
               </div>
 
-              <span className="data-mode">
+              <span
+                className={`data-mode data-mode--${dataSource}`}
+                title={dataMessage}
+              >
                 <span />
-                Local demonstration data
+                {dataSource === 'api'
+                  ? 'Live API data'
+                  : 'Local demonstration data'}
               </span>
             </div>
 
@@ -261,6 +308,7 @@ function App() {
                     <th>Location</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {filteredInventory.map((item) => {
                     const status = getStockStatus(item)
@@ -272,26 +320,36 @@ function App() {
                             <div className="medicine-icon">
                               {item.drugName.slice(0, 1)}
                             </div>
+
                             <div>
                               <strong>{item.drugName}</strong>
                               <span>{item.category}</span>
                             </div>
                           </div>
                         </td>
+
                         <td>
-                          <span className="batch-number">{item.batchNumber}</span>
+                          <span className="batch-number">
+                            {item.batchNumber}
+                          </span>
                           <small>{item.supplier}</small>
                         </td>
+
                         <td>
                           <strong>{item.quantity}</strong>
                           <small>Reorder at {item.reorderLevel}</small>
                         </td>
+
                         <td>
                           <StatusBadge status={status} />
                         </td>
+
                         <td>{formatDate(item.expiryDate)}</td>
+
                         <td>
-                          <span className="location-badge">{item.location}</span>
+                          <span className="location-badge">
+                            {item.location}
+                          </span>
                         </td>
                       </tr>
                     )
@@ -326,13 +384,20 @@ interface MetricCardProps {
   tone: 'neutral' | 'success' | 'warning' | 'danger'
 }
 
-function MetricCard({ label, value, detail, icon, tone }: MetricCardProps) {
+function MetricCard({
+  label,
+  value,
+  detail,
+  icon,
+  tone,
+}: MetricCardProps) {
   return (
     <article className={`metric-card metric-card--${tone}`}>
       <div className="metric-card__top">
         <span>{label}</span>
         <div className="metric-card__icon">{icon}</div>
       </div>
+
       <strong className="metric-card__value">{value}</strong>
       <p>{detail}</p>
     </article>
