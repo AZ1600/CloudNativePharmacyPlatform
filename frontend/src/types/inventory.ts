@@ -12,6 +12,32 @@ export interface InventoryItem {
   location: string
 }
 
+export type AdjustmentType =
+  | 'RECEIPT'
+  | 'DISPENSE'
+  | 'CORRECTION'
+  | 'QUARANTINE'
+
+export interface StockAdjustmentInput {
+  adjustment_type: AdjustmentType
+  quantity: number
+  reason: string
+}
+
+export interface AuditEntry {
+  id: string
+  drugId: string
+  drugName: string
+  batchNumber: string
+  adjustmentType: AdjustmentType
+  quantityChange: number
+  previousQuantity: number
+  newQuantity: number
+  reason: string
+  createdAt: string
+  createdBy: string
+}
+
 export function getStockStatus(item: InventoryItem): StockStatus {
   if (item.quantity === 0) {
     return 'Out of stock'

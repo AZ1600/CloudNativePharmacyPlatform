@@ -1,4 +1,9 @@
-import type { InventoryItem } from '../types/inventory'
+import type {
+  AdjustmentType,
+  AuditEntry,
+  InventoryItem,
+  StockAdjustmentInput,
+} from '../types/inventory'
 
 interface ApiInventoryItem {
   id: string
@@ -156,4 +161,110 @@ export async function createMedicine(
   }
 
   return data as CreateMedicineResponse
+}
+
+interface StockAdjustmentResponse {
+  message: string
+  adjustment_id: string
+  drug_id: string
+  previous_quantity: number
+  new_quantity: number
+  quantity_change: number
+  adjustment_type: AdjustmentType
+  created_at: string
+}
+
+interface ApiAuditEntry {
+  id: string
+  drug_id: string
+  drug_name: string
+  batch_number: string
+  adjustment_type: AdjustmentType
+  quantity_change: number
+  previous_quantity: number
+  new_quantity: number
+  reason: string
+  created_at: string
+  created_by: string
+}
+
+interface AuditResponse {
+  items: ApiAuditEntry[]
+  count: number
+}
+
+function requireApiConfiguration() {
+  if (!apiUrl) {
+    throw new Error(
+      'The API URL is not configured. Add VITE_API_URL to frontend/.env.',
+    )
+  }
+
+  const token = window.localStorage.getItem('pharmaflow_access_token')
+  if (!token) {
+    throw new Error('Authentication is required. Sign in before continuing.')
+  }
+
+  return { apiUrl, token }
+}
+
+async function parseApiResponse<T extends object>(response: Response): Promise<T> {
+  let data: T | { message?: string }
+  try {
+    data = (await response.json()) as T | { message?: string }
+  } catch {
+    throw new Error(`Pharmacy API returned HTTP ${response.status}`)
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      ('message' in data && data.message) ||
+        `Pharmacy API returned HTTP ${response.status}`,
+    )
+  }
+  return data as T
+}
+
+export async function adjustStock(
+  drugId: string,
+  adjustment: StockAdjustmentInput,
+): Promise<StockAdjustmentResponse> {
+  const configuration = requireApiConfiguration()
+  const response = await fetch(
+    `${configuration.apiUrl}/drugs/${encodeURIComponent(drugId)}/adjustments`,
+    {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${configuration.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(adjustment),
+    },
+  )
+  return parseApiResponse<StockAdjustmentResponse>(response)
+}
+
+export async function fetchAuditLog(): Promise<AuditEntry[]> {
+  const configuration = requireApiConfiguration()
+  const response = await fetch(`${configuration.apiUrl}/audit`, {
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${configuration.token}`,
+    },
+  })
+  const data = await parseApiResponse<AuditResponse>(response)
+  return data.items.map((item) => ({
+    id: item.id,
+    drugId: item.drug_id,
+    drugName: item.drug_name,
+    batchNumber: item.batch_number,
+    adjustmentType: item.adjustment_type,
+    quantityChange: item.quantity_change,
+    previousQuantity: item.previous_quantity,
+    newQuantity: item.new_quantity,
+    reason: item.reason,
+    createdAt: item.created_at,
+    createdBy: item.created_by,
+  }))
 }

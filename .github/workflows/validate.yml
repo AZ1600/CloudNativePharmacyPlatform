@@ -57,7 +57,7 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           coverage run \
-            --source=create_drug_lambda,get_drugs_lambda,process_low_stock_alert_lambda,process_low_stock_eventbridge_lambda \
+            --source=create_drug_lambda,get_drugs_lambda,adjust_stock_lambda,get_audit_log_lambda,process_low_stock_alert_lambda,process_low_stock_eventbridge_lambda \
             -m unittest discover \
             --pattern "test_*.py" \
             --verbose

@@ -184,3 +184,20 @@ The recommended next steps are:
 8. Add observability, backup, recovery, and security controls.
 
 The broader lesson is to improve the platform in vertical slices: finish the user experience, API contract, persistence, events, tests, and operations for one workflow before expanding the feature list.
+
+## 14. Stock adjustments require an accounting mindset
+
+Inventory should not be edited by replacing a number without evidence. The platform now models receipts, dispensing, corrections, and quarantines as explicit operations. Every request includes an operation type, quantity, reason, operator, and timestamp.
+
+The adjustment Lambda first reads the current tenant-scoped medicine. It then uses `TransactWriteItems` to update the quantity and create the audit record atomically. A conditional expression checks the previously read quantity, preventing one concurrent operator from silently overwriting another operator's change.
+
+Important lessons from this workflow:
+
+- available stock must never become negative;
+- corrections need signed differences and an explanation;
+- quarantine reduces available stock but remains semantically different from dispensing;
+- every mutation needs an actor and reason;
+- audit records should be append-only; and
+- concurrency conflicts should ask the user to refresh and retry.
+
+Future iterations should add stock-location balances, release from quarantine, reversal transactions instead of audit deletion, pagination, idempotency keys, and integration tests against DynamoDB Local or an isolated AWS test stack.
