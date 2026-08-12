@@ -9,7 +9,8 @@ phases:
       - pip install aws-sam-cli
   pre_build:
     commands:
-      - python -m unittest test_create_drug_lambda.py
+      - python -m unittest discover --pattern "test_*.py" --verbose
+      - cd frontend && npm ci && npm run lint && npm run build && cd ..
   build:
     commands:
       - sam build

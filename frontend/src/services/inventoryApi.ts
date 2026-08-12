@@ -1,7 +1,7 @@
 import type { InventoryItem } from '../types/inventory'
 
 interface ApiInventoryItem {
-  drug_id: string
+  id: string
   drug_name: string
   batch_number?: string
   category?: string
@@ -27,7 +27,7 @@ const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, '')
 
 function mapInventoryItem(item: ApiInventoryItem): InventoryItem {
   return {
-    id: item.drug_id,
+    id: item.id,
     drugName: item.drug_name,
     batchNumber: item.batch_number ?? 'Not provided',
     category: item.category ?? 'Uncategorised',
@@ -95,4 +95,65 @@ export async function fetchInventory(
       message,
     }
   }
+}
+
+export interface CreateMedicineInput {
+  drug_name: string
+  batch_number: string
+  quantity: number
+  reorder_level: number
+  expiry_date: string
+  supplier?: string
+}
+
+interface CreateMedicineResponse {
+  message: string
+  drug_id: string
+  tenant_id: string
+}
+
+export async function createMedicine(
+  medicine: CreateMedicineInput,
+): Promise<CreateMedicineResponse> {
+  if (!apiUrl) {
+    throw new Error(
+      'The API URL is not configured. Add VITE_API_URL to frontend/.env.',
+    )
+  }
+
+  const token = window.localStorage.getItem('pharmaflow_access_token')
+
+  if (!token) {
+    throw new Error(
+      'Authentication is required. No pharmaflow_access_token was found.',
+    )
+  }
+
+  const response = await fetch(`${apiUrl}/drugs`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(medicine),
+  })
+
+  let data: CreateMedicineResponse | { message?: string }
+
+  try {
+    data = (await response.json()) as
+      | CreateMedicineResponse
+      | { message?: string }
+  } catch {
+    throw new Error(`Medicine API returned HTTP ${response.status}`)
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.message ?? `Medicine API returned HTTP ${response.status}`,
+    )
+  }
+
+  return data as CreateMedicineResponse
 }

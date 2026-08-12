@@ -53,3 +53,195 @@ a {
 #root {
   min-height: 100vh;
 }
+
+.success-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: -10px 0 22px;
+  padding: 12px 15px;
+  color: #126447;
+  font-size: 13px;
+  font-weight: 700;
+  background: #e8f6f0;
+  border: 1px solid #bfe3d4;
+  border-radius: 11px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  overflow-y: auto;
+  background: rgb(9 46 44 / 72%);
+  backdrop-filter: blur(4px);
+}
+
+.medicine-modal {
+  width: min(620px, 100%);
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 28px 80px rgb(9 46 44 / 25%);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 24px 26px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-header h2 {
+  margin: 3px 0 6px;
+  font-family: Manrope, sans-serif;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+
+.modal-header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.modal-eyebrow {
+  color: var(--teal) !important;
+  font-size: 11px !important;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.modal-close-button {
+  display: grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: #52635f;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.modal-close-button:hover {
+  color: var(--teal);
+  border-color: #9bcac1;
+}
+
+.modal-close-button:disabled,
+.modal-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.modal-form {
+  padding: 23px 26px 25px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 17px;
+}
+
+.form-field {
+  display: grid;
+  gap: 7px;
+  color: #344842;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.form-field-wide {
+  grid-column: 1 / -1;
+}
+
+.form-field input {
+  width: 100%;
+  min-height: 43px;
+  padding: 0 12px;
+  color: var(--text);
+  font-size: 13px;
+  background: #fbfdfc;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  outline: none;
+}
+
+.form-field input:focus {
+  border-color: #60ad9f;
+  box-shadow: 0 0 0 3px rgb(8 127 112 / 9%);
+}
+
+.modal-error {
+  margin-top: 17px;
+  padding: 11px 13px;
+  color: #9b3038;
+  font-size: 13px;
+  background: #feecee;
+  border: 1px solid #f3c4c8;
+  border-radius: 9px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 23px;
+}
+
+.secondary-button {
+  min-height: 43px;
+  padding: 0 17px;
+  color: #40544f;
+  font-size: 13px;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.secondary-button:hover {
+  background: #f5f8f7;
+}
+
+@media (width <= 600px) {
+  .modal-backdrop {
+    place-items: end center;
+    padding: 12px;
+  }
+
+  .medicine-modal {
+    border-radius: 16px 16px 0 0;
+  }
+
+  .modal-header,
+  .modal-form {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-field-wide {
+    grid-column: auto;
+  }
+
+  .modal-actions {
+    flex-direction: column-reverse;
+  }
+
+  .modal-actions button {
+    width: 100%;
+  }
+}
