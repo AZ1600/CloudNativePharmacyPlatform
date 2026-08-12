@@ -18,15 +18,20 @@ import {
 } from 'lucide-react'
 import './App.css'
 import { AddMedicineModal } from './components/AddMedicineModal'
+import { StockAdjustmentModal } from './components/StockAdjustmentModal'
 import { mockInventory } from './data/mockInventory'
 import {
   createMedicine,
+  adjustStock,
+  fetchAuditLog,
   fetchInventory,
   type CreateMedicineInput,
 } from './services/inventoryApi'
 import {
   getStockStatus,
+  type AuditEntry,
   type InventoryItem,
+  type StockAdjustmentInput,
   type StockStatus,
 } from './types/inventory'
 
@@ -46,6 +51,11 @@ function App() {
   const [submittingMedicine, setSubmittingMedicine] = useState(false)
   const [medicineError, setMedicineError] = useState('')
   const [medicineSuccess, setMedicineSuccess] = useState('')
+  const [selectedMedicine, setSelectedMedicine] =
+    useState<InventoryItem | null>(null)
+  const [submittingAdjustment, setSubmittingAdjustment] = useState(false)
+  const [adjustmentError, setAdjustmentError] = useState('')
+  const [auditHistory, setAuditHistory] = useState<AuditEntry[]>([])
 
   useEffect(() => {
     let active = true
@@ -64,6 +74,14 @@ function App() {
           ? 'Inventory loaded from the pharmacy API'
           : result.message ?? 'Using local demonstration data',
       )
+
+      if (result.source === 'api') {
+        try {
+          setAuditHistory(await fetchAuditLog())
+        } catch (error) {
+          console.error('Audit API request failed:', error)
+        }
+      }
     }
 
     void loadInventory()
@@ -104,6 +122,43 @@ function App() {
       )
     } finally {
       setSubmittingMedicine(false)
+    }
+  }
+
+  async function handleStockAdjustment(adjustment: StockAdjustmentInput) {
+    if (!selectedMedicine) {
+      return
+    }
+
+    setSubmittingAdjustment(true)
+    setAdjustmentError('')
+    setMedicineSuccess('')
+
+    try {
+      const result = await adjustStock(selectedMedicine.id, adjustment)
+      setInventory((currentInventory) =>
+        currentInventory.map((item) =>
+          item.id === selectedMedicine.id
+            ? { ...item, quantity: result.new_quantity }
+            : item,
+        ),
+      )
+      setSelectedMedicine(null)
+      setMedicineSuccess(
+        `${selectedMedicine.drugName} stock changed from ${result.previous_quantity} to ${result.new_quantity} units.`,
+      )
+
+      try {
+        setAuditHistory(await fetchAuditLog())
+      } catch (error) {
+        console.error('Audit history refresh failed:', error)
+      }
+    } catch (error) {
+      setAdjustmentError(
+        error instanceof Error ? error.message : 'Unable to adjust stock.',
+      )
+    } finally {
+      setSubmittingAdjustment(false)
     }
   }
 
@@ -221,7 +276,10 @@ function App() {
 
           <div className="environment">
             <span className="environment__dot" />
-            Production environment
+            <div>
+              <small>Environment</small>
+              <strong>Production workspace</strong>
+            </div>
           </div>
 
           <div className="topbar__actions">
@@ -243,27 +301,32 @@ function App() {
 
         <div className="page" id="dashboard">
           <section className="page-heading">
-            <div>
+            <div className="page-heading__copy">
               <p className="eyebrow">Pharmacy operations</p>
-              <h1>Inventory dashboard</h1>
+              <h1>Good afternoon, Olawale.</h1>
               <p>
-                Monitor medicine availability, identify supply risks, and keep
-                clinical teams ready.
+                Here is today&apos;s inventory position across Hospital Central.
               </p>
             </div>
 
-            <button
-              className="primary-button"
-              type="button"
-              onClick={() => {
-                setMedicineError('')
-                setMedicineSuccess('')
-                setAddMedicineOpen(true)
-              }}
-            >
-              <CirclePlus size={19} />
-              Add medicine
-            </button>
+            <div className="page-heading__actions">
+              <a className="secondary-button heading-link" href="#audit">
+                <ClipboardList size={18} />
+                View audit log
+              </a>
+              <button
+                className="primary-button"
+                type="button"
+                onClick={() => {
+                  setMedicineError('')
+                  setMedicineSuccess('')
+                  setAddMedicineOpen(true)
+                }}
+              >
+                <CirclePlus size={19} />
+                Add medicine
+              </button>
+            </div>
           </section>
 
           {medicineSuccess && (
@@ -364,6 +427,7 @@ function App() {
                     <th>Status</th>
                     <th>Expiry</th>
                     <th>Location</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
 
@@ -409,6 +473,19 @@ function App() {
                             {item.location}
                           </span>
                         </td>
+
+                        <td>
+                          <button
+                            className="table-action-button"
+                            type="button"
+                            onClick={() => {
+                              setAdjustmentError('')
+                              setSelectedMedicine(item)
+                            }}
+                          >
+                            Adjust stock
+                          </button>
+                        </td>
                       </tr>
                     )
                   })}
@@ -428,6 +505,53 @@ function App() {
               Showing {filteredInventory.length} of {inventory.length} medicines
             </footer>
           </section>
+
+          <section className="audit-panel" id="audit">
+            <div className="panel-heading">
+              <div>
+                <h2>Stock adjustment audit log</h2>
+                <p>Immutable history of receipts, dispensing, corrections, and quarantines.</p>
+              </div>
+              <span className="audit-count">{auditHistory.length} records</span>
+            </div>
+
+            {auditHistory.length === 0 ? (
+              <div className="audit-empty-state">
+                <ClipboardList aria-hidden="true" size={26} />
+                <strong>No stock adjustments recorded</strong>
+                <p>Completed live API adjustments will appear here.</p>
+              </div>
+            ) : (
+              <div className="table-wrapper">
+                <table className="audit-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Medicine</th>
+                      <th>Operation</th>
+                      <th>Change</th>
+                      <th>Stock</th>
+                      <th>Reason</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditHistory.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>{formatDateTime(entry.createdAt)}</td>
+                        <td><strong>{entry.drugName}</strong><small>{entry.batchNumber}</small></td>
+                        <td><span className={`operation-badge operation-badge--${entry.adjustmentType.toLowerCase()}`}>{formatAdjustmentType(entry.adjustmentType)}</span></td>
+                        <td className={entry.quantityChange > 0 ? 'quantity-positive' : 'quantity-negative'}>
+                          {entry.quantityChange > 0 ? '+' : ''}{entry.quantityChange}
+                        </td>
+                        <td>{entry.previousQuantity} → {entry.newQuantity}</td>
+                        <td className="audit-reason">{entry.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         </div>
       </main>
 
@@ -441,6 +565,19 @@ function App() {
             setMedicineError('')
           }}
           onSubmit={handleAddMedicine}
+        />
+      )}
+
+      {selectedMedicine && (
+        <StockAdjustmentModal
+          error={adjustmentError}
+          isSubmitting={submittingAdjustment}
+          medicine={selectedMedicine}
+          onClose={() => {
+            setSelectedMedicine(null)
+            setAdjustmentError('')
+          }}
+          onSubmit={handleStockAdjustment}
         />
       )}
     </div>
@@ -492,6 +629,22 @@ function formatDate(value: string) {
     month: 'short',
     year: 'numeric',
   }).format(new Date(value))
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat('en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(value))
+}
+
+function formatAdjustmentType(value: AuditEntry['adjustmentType']) {
+  return {
+    RECEIPT: 'Received',
+    DISPENSE: 'Dispensed',
+    CORRECTION: 'Corrected',
+    QUARANTINE: 'Quarantined',
+  }[value]
 }
 
 export default App

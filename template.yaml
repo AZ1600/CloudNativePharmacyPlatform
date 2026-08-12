@@ -118,6 +118,52 @@ Resources:
             Method: GET
             Auth:
               Authorizer: CognitoJwtAuthorizer
+
+  AdjustStockFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: adjust_stock_lambda.lambda_handler
+      Policies:
+        - Statement:
+            - Sid: ReadAndAdjustTenantInventory
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt InventoryTable.Arn
+      Events:
+        AdjustStock:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /drugs/{drug_id}/adjustments
+            Method: POST
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
+  GetAuditLogFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: get_audit_log_lambda.lambda_handler
+      Policies:
+        - Statement:
+            - Sid: ReadTenantAuditHistory
+              Effect: Allow
+              Action:
+                - dynamodb:Query
+              Resource: !Sub "${InventoryTable.Arn}/index/GSI1"
+      Events:
+        GetAuditLog:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /audit
+            Method: GET
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+
   ProcessLowStockAlertFunction:
     Type: AWS::Serverless::Function
     Properties:

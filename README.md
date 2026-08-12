@@ -6,23 +6,46 @@ The repository contains a React operations dashboard, Python Lambda functions, A
 
 > This is an engineering portfolio project, not a certified clinical system. It must not be used for real patient care or regulated pharmacy operations without the required security, compliance, validation, and operational controls.
 
-## Product preview
+## Product tour
 
-Repository screenshots will be added after the current workflow and responsive states are finalised.
+The screenshots below use fictional demonstration inventory. Live audit history
+and deployed AWS evidence will be added after the backend workflow is connected.
 
-Suggested screenshots:
+### Inventory management
 
-- Inventory dashboard on desktop
-- Add medicine workflow
-- Low-stock and out-of-stock states
-- Responsive mobile layout
-- AWS architecture or deployed API evidence
+Search, filter, and monitor medicine batches from the pharmacy operations
+dashboard.
+
+![PharmaFlow medicine inventory dashboard](docs/images/inventory-management.png)
+
+### Add medicine
+
+Create a medicine batch with its supplier, quantity, reorder level, and expiry
+date.
+
+![PharmaFlow add medicine workflow](docs/images/add-medicine-workflow.png)
+
+### Stock adjustments
+
+Record receipts, dispensing, corrections, and quarantine operations with a
+mandatory audit reason.
+
+![PharmaFlow stock adjustment workflow](docs/images/stock-adjustment-workflow.png)
+
+### Responsive mobile dashboard
+
+The mobile layout keeps the most important stock information and actions
+available on smaller screens.
+
+![PharmaFlow responsive mobile dashboard](docs/images/mobile-dashboard.png)
 
 ## What the platform does
 
 - Presents a responsive pharmacy inventory dashboard
 - Reads inventory through a Cognito-protected HTTP API
 - Creates tenant-scoped medicine batches
+- Records stock receipts, dispensing, corrections, and quarantines
+- Writes an immutable audit record atomically with every quantity change
 - Calculates healthy, low-stock, and out-of-stock states
 - Emits low-stock events through SQS, SNS, EventBridge, and Kinesis
 - Processes SQS events with partial-batch failure reporting
@@ -39,8 +62,12 @@ flowchart LR
     Cognito["Amazon Cognito JWT"] --> API
     API --> Create["Create medicine Lambda"]
     API --> Read["Read inventory Lambda"]
+    API --> Adjust["Adjust stock Lambda"]
+    API --> Audit["Read audit history Lambda"]
     Create --> DB["Amazon DynamoDB"]
     Read --> DB
+    Adjust --> DB
+    Audit --> DB
     Create --> SQS["Amazon SQS + DLQ"]
     Create --> SNS["Amazon SNS"]
     Create --> EB["Amazon EventBridge"]
@@ -79,6 +106,8 @@ The tenant identifier is obtained from verified JWT claims rather than request i
 ├── frontend/                              React dashboard
 ├── create_drug_lambda.py                  POST /drugs
 ├── get_drugs_lambda.py                    GET /drugs
+├── adjust_stock_lambda.py                 POST /drugs/{drug_id}/adjustments
+├── get_audit_log_lambda.py                GET /audit
 ├── process_low_stock_alert_lambda.py      SQS consumer
 ├── process_low_stock_eventbridge_lambda.py
 ├── template.yaml                          SAM application
@@ -173,6 +202,31 @@ Requires the `HospitalAdmin` or `Pharmacist` role.
 
 Quantities must be non-negative whole numbers and the expiry date must be a future ISO date. When `quantity <= reorder_level`, low-stock events are published.
 
+### `POST /drugs/{drug_id}/adjustments`
+
+Requires the `HospitalAdmin` or `Pharmacist` role. The quantity update and audit record are committed in one DynamoDB transaction.
+
+```json
+{
+  "adjustment_type": "RECEIPT",
+  "quantity": 25,
+  "reason": "Delivery note DN-1042 received and checked"
+}
+```
+
+Supported operations:
+
+- `RECEIPT` adds a positive quantity.
+- `DISPENSE` subtracts a positive quantity.
+- `QUARANTINE` removes a positive quantity from available stock.
+- `CORRECTION` accepts a positive or negative quantity difference.
+
+An adjustment that would make available stock negative returns `409 Conflict`.
+
+### `GET /audit`
+
+Returns the newest 100 tenant-scoped stock-adjustment records. `HospitalAdmin`, `Pharmacist`, and `Viewer` roles can read the history.
+
 ## Deploy to AWS
 
 Validate before deploying:
@@ -214,7 +268,7 @@ Before production use, the platform still needs:
 
 ## Roadmap
 
-- Stock receipts, adjustments, quarantines, and recalls
+- Stock recalls and release-from-quarantine workflows
 - Expiry alerts and FEFO stock rotation
 - Supplier and purchase-order workflows
 - Inventory forecasting and operational analytics
