@@ -17,8 +17,13 @@ import {
   XCircle,
 } from 'lucide-react'
 import './App.css'
+import { AddMedicineModal } from './components/AddMedicineModal'
 import { mockInventory } from './data/mockInventory'
-import { fetchInventory } from './services/inventoryApi'
+import {
+  createMedicine,
+  fetchInventory,
+  type CreateMedicineInput,
+} from './services/inventoryApi'
 import {
   getStockStatus,
   type InventoryItem,
@@ -37,6 +42,10 @@ function App() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterValue>('All')
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [addMedicineOpen, setAddMedicineOpen] = useState(false)
+  const [submittingMedicine, setSubmittingMedicine] = useState(false)
+  const [medicineError, setMedicineError] = useState('')
+  const [medicineSuccess, setMedicineSuccess] = useState('')
 
   useEffect(() => {
     let active = true
@@ -63,6 +72,40 @@ function App() {
       active = false
     }
   }, [])
+
+  async function handleAddMedicine(medicine: CreateMedicineInput) {
+    setSubmittingMedicine(true)
+    setMedicineError('')
+    setMedicineSuccess('')
+
+    try {
+      await createMedicine(medicine)
+      setAddMedicineOpen(false)
+      setMedicineSuccess(`${medicine.drug_name} was added successfully.`)
+
+      const refreshedInventory = await fetchInventory([])
+
+      if (refreshedInventory.source === 'api') {
+        setInventory(refreshedInventory.items)
+        setDataSource('api')
+        setDataMessage('Inventory loaded from the pharmacy API')
+      } else {
+        setDataMessage(
+          refreshedInventory.message ??
+            'Medicine was saved, but inventory could not be refreshed.',
+        )
+        setMedicineSuccess(
+          `${medicine.drug_name} was added, but the inventory could not be refreshed. Reload the page to try again.`,
+        )
+      }
+    } catch (error) {
+      setMedicineError(
+        error instanceof Error ? error.message : 'Unable to add medicine.',
+      )
+    } finally {
+      setSubmittingMedicine(false)
+    }
+  }
 
   const filteredInventory = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -209,11 +252,26 @@ function App() {
               </p>
             </div>
 
-            <button className="primary-button" type="button">
+            <button
+              className="primary-button"
+              type="button"
+              onClick={() => {
+                setMedicineError('')
+                setMedicineSuccess('')
+                setAddMedicineOpen(true)
+              }}
+            >
               <CirclePlus size={19} />
               Add medicine
             </button>
           </section>
+
+          {medicineSuccess && (
+            <div className="success-banner" role="status">
+              <PackageCheck aria-hidden="true" size={19} />
+              {medicineSuccess}
+            </div>
+          )}
 
           <section className="metric-grid" aria-label="Inventory summary">
             <MetricCard
@@ -372,6 +430,19 @@ function App() {
           </section>
         </div>
       </main>
+
+      {addMedicineOpen && (
+        <AddMedicineModal
+          error={medicineError}
+          isOpen
+          isSubmitting={submittingMedicine}
+          onClose={() => {
+            setAddMedicineOpen(false)
+            setMedicineError('')
+          }}
+          onSubmit={handleAddMedicine}
+        />
+      )}
     </div>
   )
 }

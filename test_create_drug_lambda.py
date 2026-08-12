@@ -205,6 +205,40 @@ class CreateDrugLambdaTests(unittest.TestCase):
         self.assertEqual(response["body"]["message"], "Unauthorized")
         self.mock_table.put_item.assert_not_called()
 
+    def test_rejects_invalid_expiry_date(self):
+        event = self.api_event(
+            {
+                "drug_name": "Paracetamol",
+                "batch_number": "BATCH-001",
+                "quantity": 150,
+                "reorder_level": 20,
+                "expiry_date": "not-a-date",
+            }
+        )
+
+        response = self.parse_response(self.module.lambda_handler(event, None))
+
+        self.assertEqual(response["statusCode"], 400)
+        self.assertIn("YYYY-MM-DD", response["body"]["message"])
+        self.mock_table.put_item.assert_not_called()
+
+    def test_rejects_non_integer_quantity(self):
+        event = self.api_event(
+            {
+                "drug_name": "Paracetamol",
+                "batch_number": "BATCH-001",
+                "quantity": 10.5,
+                "reorder_level": 20,
+                "expiry_date": "2027-12-31",
+            }
+        )
+
+        response = self.parse_response(self.module.lambda_handler(event, None))
+
+        self.assertEqual(response["statusCode"], 400)
+        self.assertIn("whole number", response["body"]["message"])
+        self.mock_table.put_item.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

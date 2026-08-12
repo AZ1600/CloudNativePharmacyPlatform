@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from decimal import Decimal
 
@@ -8,6 +9,8 @@ from botocore.exceptions import ClientError
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 ALLOWED_ROLES = {"HospitalAdmin", "Pharmacist", "Viewer"}
 
@@ -38,21 +41,17 @@ def lambda_handler(event, context):
         )
     except ValueError as exc:
         return response(400, {"message": str(exc)})
-    except ClientError as exc:
+    except ClientError:
+        logger.exception("Database operation failed while reading inventory")
         return response(
             500,
-            {
-                "message": "Database operation failed",
-                "error": exc.response["Error"]["Message"],
-            },
+            {"message": "Unable to load inventory. Please try again."},
         )
-    except Exception as exc:
+    except Exception:
+        logger.exception("Unexpected error while reading inventory")
         return response(
             500,
-            {
-                "message": "Internal server error",
-                "error": str(exc),
-            },
+            {"message": "Internal server error"},
         )
 
 

@@ -142,6 +142,7 @@ class GetDrugsLambdaTests(unittest.TestCase):
             "Amoxicillin 500 mg",
         )
         self.assertEqual(result["body"]["items"][0]["quantity"], 120)
+        self.assertEqual(result["body"]["items"][0]["id"], "drug-001")
 
         self.mock_table.query.assert_called_once_with(
             IndexName="GSI1",

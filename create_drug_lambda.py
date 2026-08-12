@@ -1,7 +1,8 @@
 import base64
 import json
+import logging
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from uuid import uuid4
 
 import boto3
@@ -18,6 +19,8 @@ low_stock_queue_url = os.environ.get("LOW_STOCK_QUEUE_URL")
 low_stock_topic_arn = os.environ.get("LOW_STOCK_TOPIC_ARN")
 low_stock_stream_name = os.environ.get("LOW_STOCK_STREAM_NAME")
 event_bus_name = os.environ.get("EVENT_BUS_NAME")
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 ALLOWED_ROLES = {"HospitalAdmin", "Pharmacist"}
 REQUIRED_FIELDS = {
@@ -44,7 +47,7 @@ def lambda_handler(event, context):
 
         drug_name = require_non_empty_string(body, "drug_name")
         batch_number = require_non_empty_string(body, "batch_number")
-        expiry_date = require_non_empty_string(body, "expiry_date")
+        expiry_date = require_valid_expiry_date(body)
         supplier = str(body.get("supplier", "")).strip()
         quantity = require_non_negative_int(body, "quantity")
         reorder_level = require_non_negative_int(body, "reorder_level")
@@ -112,16 +115,15 @@ def lambda_handler(event, context):
         return response(400, {"message": f"Missing required field: {exc.args[0]}"})
     except ValueError as exc:
         return response(400, {"message": str(exc)})
-    except ClientError as exc:
+    except ClientError:
+        logger.exception("Database operation failed while creating a drug")
         return response(
             500,
-            {
-                "message": "Database operation failed",
-                "error": exc.response["Error"]["Message"],
-            },
+            {"message": "Unable to create medicine. Please try again."},
         )
-    except Exception as exc:
-        return response(500, {"message": "Internal server error", "error": str(exc)})
+    except Exception:
+        logger.exception("Unexpected error while creating a drug")
+        return response(500, {"message": "Internal server error"})
 
 
 def get_claims(event):
@@ -174,13 +176,27 @@ def require_non_empty_string(body, field_name):
 
 
 def require_non_negative_int(body, field_name):
-    try:
-        value = int(body[field_name])
-    except (TypeError, ValueError):
-        raise ValueError(f"{field_name} must be a valid integer")
+    value = body[field_name]
+
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{field_name} must be a whole number")
 
     if value < 0:
         raise ValueError(f"{field_name} must be zero or greater")
+
+    return value
+
+
+def require_valid_expiry_date(body):
+    value = require_non_empty_string(body, "expiry_date")
+
+    try:
+        expiry_date = date.fromisoformat(value)
+    except ValueError:
+        raise ValueError("expiry_date must use YYYY-MM-DD format")
+
+    if expiry_date <= date.today():
+        raise ValueError("expiry_date must be in the future")
 
     return value
 
