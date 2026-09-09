@@ -21,6 +21,11 @@ Parameters:
   StageName:
     Type: String
     Default: prod
+  AllowedOrigin:
+    Type: String
+    Description: Browser origin permitted by API CORS
+    AllowedPattern: "^https?://[^/*]+$"
+    ConstraintDescription: Must be one explicit http(s) origin without a path or wildcard.
 
 Resources:
   ArtifactBucket:
@@ -143,6 +148,8 @@ Resources:
             Value: !Ref UserPoolAudience
           - Name: STAGE_NAME
             Value: !Ref StageName
+          - Name: ALLOWED_ORIGIN
+            Value: !Ref AllowedOrigin
       Source:
         Type: CODEPIPELINE
         BuildSpec: buildspec.yml

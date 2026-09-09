@@ -247,19 +247,21 @@ The deployment requires:
 - Cognito user-pool issuer URL
 - Cognito app-client audience
 - API stage name
+- Allowed browser origin for API CORS
+
+Wildcard CORS origins are rejected by the infrastructure configuration. The deployment pipeline passes the configured frontend origin through `ALLOWED_ORIGIN`.
 
 Do not commit credentials or real access tokens. Use separate AWS accounts/stacks for development, staging, and production.
 
 ## Quality and security
 
-The project currently includes least-privilege Lambda permissions, JWT route protection, DynamoDB encryption, X-Ray tracing, a low-stock DLQ, pinned CI validation tools, and partial-batch SQS failure handling.
+The project currently includes least-privilege Lambda permissions, JWT route protection, DynamoDB encryption, X-Ray tracing, a low-stock DLQ, pinned CI validation tools, partial-batch SQS failure handling, and an explicit API CORS origin allowlist.
 
 Before production use, the platform still needs:
 
 - Idempotent medicine creation and duplicate-batch protection
 - Transactional/outbox-style event publishing
 - API pagination and continuation tokens
-- Restricted production CORS origins
 - Managed frontend authentication and token refresh
 - Complete audit history and stock-adjustment operations
 - Alarms, dashboards, WAF/rate limiting, backups, and recovery testing

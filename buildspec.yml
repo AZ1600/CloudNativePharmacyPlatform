@@ -25,7 +25,8 @@ phases:
           --parameter-overrides \
             UserPoolIssuer="$USER_POOL_ISSUER" \
             UserPoolAudience="$USER_POOL_AUDIENCE" \
-            StageName="$STAGE_NAME"
+            StageName="$STAGE_NAME" \
+            AllowedOrigin="$ALLOWED_ORIGIN"
 
 artifacts:
   files:
