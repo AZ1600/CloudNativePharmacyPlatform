@@ -3,14 +3,17 @@ import json
 import logging
 import os
 from datetime import date, datetime, timezone
+from hashlib import sha256
 from uuid import uuid4
 
 import boto3
+from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
+client = boto3.client("dynamodb")
 sqs = boto3.client("sqs")
 sns = boto3.client("sns")
 kinesis = boto3.client("kinesis")
@@ -76,9 +79,41 @@ def lambda_handler(event, context):
             "updated_by": user_id,
         }
 
-        table.put_item(
-            Item=item,
-            ConditionExpression="attribute_not_exists(PK) AND attribute_not_exists(SK)",
+        # The guard shares the tenant partition but has no GSI keys, so
+        # inventory queries continue to return only medicine records.
+        uniqueness_guard = {
+            "PK": f"TENANT#{tenant_id}",
+            "SK": batch_uniqueness_key(drug_name, batch_number),
+            "entity_type": "BATCH_UNIQUENESS",
+            "drug_id": drug_id,
+            "drug_name": drug_name,
+            "batch_number": batch_number,
+            "created_at": now,
+        }
+
+        # Both conditional puts must commit together. Concurrent requests
+        # for the same tenant/medicine/batch cannot both succeed.
+        client.transact_write_items(
+            TransactItems=[
+                {
+                    "Put": {
+                        "TableName": table.name,
+                        "Item": serialize_item(item),
+                        "ConditionExpression": (
+                            "attribute_not_exists(PK) AND attribute_not_exists(SK)"
+                        ),
+                    }
+                },
+                {
+                    "Put": {
+                        "TableName": table.name,
+                        "Item": serialize_item(uniqueness_guard),
+                        "ConditionExpression": (
+                            "attribute_not_exists(PK) AND attribute_not_exists(SK)"
+                        ),
+                    }
+                },
+            ]
         )
 
         low_stock_event_sent = False
@@ -115,7 +150,23 @@ def lambda_handler(event, context):
         return response(400, {"message": f"Missing required field: {exc.args[0]}"})
     except ValueError as exc:
         return response(400, {"message": str(exc)})
-    except ClientError:
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "TransactionCanceledException":
+            reasons = exc.response.get("CancellationReasons") or []
+            if any(
+                reason.get("Code") == "ConditionalCheckFailed"
+                for reason in reasons
+            ):
+                return response(
+                    409,
+                    {
+                        "message": (
+                            "A medicine with this name and batch number "
+                            "already exists for this tenant."
+                        )
+                    },
+                )
+
         logger.exception("Database operation failed while creating a drug")
         return response(
             500,
@@ -169,7 +220,10 @@ def validate_required_fields(body):
 
 
 def require_non_empty_string(body, field_name):
-    value = str(body[field_name]).strip()
+    value = body[field_name]
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string")
+    value = value.strip()
     if not value:
         raise ValueError(f"{field_name} cannot be empty")
     return value
@@ -199,6 +253,21 @@ def require_valid_expiry_date(body):
         raise ValueError("expiry_date must be in the future")
 
     return value
+
+
+def batch_uniqueness_key(drug_name, batch_number):
+    # JSON framing avoids ambiguous separators between the two fields.
+    canonical = json.dumps(
+        [drug_name.strip().casefold(), batch_number.strip().casefold()],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return "BATCH#" + sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def serialize_item(item):
+    serializer = TypeSerializer()
+    return {key: serializer.serialize(value) for key, value in item.items()}
 
 
 def utc_now():

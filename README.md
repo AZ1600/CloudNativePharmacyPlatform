@@ -202,6 +202,8 @@ Requires the `HospitalAdmin` or `Pharmacist` role.
 
 Quantities must be non-negative whole numbers and the expiry date must be a future ISO date. When `quantity <= reorder_level`, low-stock events are published.
 
+**Duplicate-batch protection:** The API atomically creates a medicine record and a tenant-scoped uniqueness guard for the case-insensitive `(drug_name, batch_number)` pair using DynamoDB `TransactWriteItems`. A second creation for the same pair within a tenant returns HTTP `409 Conflict`, without sending low-stock events. Different tenants can use the same pair, and the uniqueness guard is excluded from inventory queries. This protects new records only; pre-existing inventory needs a migration/backfill before the guarantee covers older batches. A duplicate rejection is not equivalent to a general idempotent retry: clients should not automatically retry a timed-out creation without checking inventory.
+
 ### `POST /drugs/{drug_id}/adjustments`
 
 Requires the `HospitalAdmin` or `Pharmacist` role. The quantity update and audit record are committed in one DynamoDB transaction.
@@ -259,7 +261,7 @@ The project currently includes least-privilege Lambda permissions, JWT route pro
 
 Before production use, the platform still needs:
 
-- Idempotent medicine creation and duplicate-batch protection
+- Request-level idempotency, legacy batch-guard backfill, and retry-safe event publishing (transactional outbox)
 - Transactional/outbox-style event publishing
 - API pagination and continuation tokens
 - Managed frontend authentication and token refresh
